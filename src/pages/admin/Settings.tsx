@@ -441,7 +441,7 @@ const Settings = () => {
                   <Label htmlFor="slug">Buchungs-URL</Label>
                   <div className="flex">
                     <span className="inline-flex items-center px-3 text-sm text-muted-foreground bg-muted border border-r-0 border-input rounded-l-md">
-                      daylane.app/b/
+                      apointo.com/b/
                     </span>
                     <Input
                       id="slug"

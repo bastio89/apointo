@@ -110,7 +110,7 @@ const Auth = () => {
       let errorMessage = "Ein Fehler ist aufgetreten.";
       
       if (error.message === "Dieser Slug ist bereits vergeben") {
-        errorMessage = `Die URL "daylane.app/b/${signUpData.slug}" ist bereits vergeben. Bitte wählen Sie einen anderen Namen oder ändern Sie die URL.`;
+        errorMessage = `Die URL "apointo.com/b/${signUpData.slug}" ist bereits vergeben. Bitte wählen Sie einen anderen Namen oder ändern Sie die URL.`;
       } else if (error.message === "Email bereits registriert. Bitte verwenden Sie eine andere Email oder melden Sie sich an.") {
         errorMessage = "Diese E-Mail ist bereits registriert. Bitte melden Sie sich an oder verwenden Sie eine andere E-Mail.";
       } else {
@@ -215,7 +215,7 @@ const Auth = () => {
               <CardHeader>
                 <CardTitle>Anmelden</CardTitle>
                 <CardDescription>
-                  Melden Sie sich in Ihrem Daylane-Konto an
+                  Melden Sie sich in Ihrem Apointo-Konto an
                 </CardDescription>
               </CardHeader>
               <CardContent>
@@ -279,8 +279,8 @@ const Auth = () => {
 
                   <div className="space-y-2">
                     <Label htmlFor="slug">Buchungs-URL (anpassbar)</Label>
-                    <div className="flex items-center space-x-2">
-                      <span className="text-sm text-muted-foreground">daylane.app/b/</span>
+                    <div className="flex items-center space-x-1">
+                      <span className="text-sm text-muted-foreground">apointo.com/b/</span>
                       <Input
                         id="slug"
                         value={signUpData.slug}

@@ -69,14 +69,14 @@ const Privacy = () => {
               </p>
               <div className="bg-muted p-4 rounded-lg mb-4">
                 <p>
-                  Daylane GmbH<br />
+                  Apointo GmbH<br />
                   Musterstraße 123<br />
                   12345 Berlin<br />
                   Deutschland
                 </p>
                 <p>
                   Telefon: +49 (0) 30 12345678<br />
-                  E-Mail: datenschutz@daylane.de
+                  E-Mail: datenschutz@apointo.com
                 </p>
               </div>
             </section>

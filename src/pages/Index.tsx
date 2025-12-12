@@ -18,9 +18,9 @@ const Index = () => {
       {/* Navigation */}
       <nav className="border-b border-border bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
         <div className="container flex h-16 items-center justify-between px-4">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center gap-2">
             <Calendar className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-            <span className="text-lg sm:text-xl font-bold text-foreground">Daylane</span>
+            <span className="text-lg sm:text-xl font-bold text-foreground">Apointo</span>
           </div>
           <div className="flex items-center space-x-2 sm:space-x-4">
             <Link to="/pricing" className="hidden sm:block text-muted-foreground hover:text-foreground">
@@ -472,9 +472,9 @@ const Index = () => {
         <div className="container py-12">
           <div className="grid md:grid-cols-4 gap-8">
             <div className="space-y-4">
-              <div className="flex items-center space-x-2">
+              <div className="flex items-center gap-2 mb-4">
                 <Calendar className="h-6 w-6 text-primary" />
-                <span className="text-xl font-bold">Daylane</span>
+                <span className="text-xl font-bold">Apointo</span>
               </div>
               <p className="text-muted-foreground">
                 Die komplette Management-Lösung für moderne Dienstleistungsunternehmen.

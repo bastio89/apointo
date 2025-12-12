@@ -10,7 +10,7 @@ const Contact = () => {
       icon: Mail,
       title: "E-Mail Support",
       description: "Schreiben Sie uns eine E-Mail",
-      contact: "support@daylane.de",
+      contact: "support@apointo.com",
       action: "E-Mail senden"
     }
   ];

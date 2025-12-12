@@ -24,9 +24,9 @@ const Terms = () => {
             <section>
               <h2 className="text-2xl font-bold mb-4">§ 1 Geltungsbereich</h2>
               <p className="text-muted-foreground mb-4">
-                Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge zwischen der Daylane GmbH 
-                (nachfolgend "Daylane" oder "wir") und ihren Kunden über die Nutzung der 
-                Daylane-Software als Dienstleistung (Software as a Service).
+                Diese Allgemeinen Geschäftsbedingungen gelten für alle Verträge zwischen der Apointo GmbH 
+                (nachfolgend "Apointo" oder "wir") und ihren Kunden über die Nutzung der 
+                Apointo-Software als Dienstleistung (Software as a Service).
               </p>
             </section>
 
