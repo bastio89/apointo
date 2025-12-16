@@ -1,270 +1,281 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Scissors, User, Check, X, Plus } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { TrendingUp, Calendar, Clock, Euro, Star, Users } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
 import { formatCurrency } from "@/lib/currency";
+import { startOfMonth, endOfMonth, startOfWeek, endOfWeek } from "date-fns";
 
-interface ServiceAssignmentsProps {
+interface StaffPerformanceProps {
   staff: any[];
   tenantId: string;
 }
 
-export default function ServiceAssignments({ staff, tenantId }: ServiceAssignmentsProps) {
-  const { toast } = useToast();
-  const [services, setServices] = useState<any[]>([]);
-  const [assignments, setAssignments] = useState<any[]>([]);
-  const [selectedStaff, setSelectedStaff] = useState<string>("");
-  const [loading, setLoading] = useState(false);
+interface PerformanceData {
+  staffId: string;
+  staffName: string;
+  colorHex: string;
+  totalAppointments: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+  totalRevenue: number;
+  avgAppointmentsPerDay: number;
+  completionRate: number;
+}
+
+export default function StaffPerformance({ staff, tenantId }: StaffPerformanceProps) {
+  const [performanceData, setPerformanceData] = useState<PerformanceData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [timeRange, setTimeRange] = useState<"week" | "month">("month");
 
   useEffect(() => {
-    loadServices();
-    loadAssignments();
-  }, [tenantId]);
+    loadPerformanceData();
+  }, [tenantId, staff, timeRange]);
 
-  const loadServices = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('services')
-        .select('*')
-        .eq('tenant_id', tenantId)
-        .eq('active', true)
-        .order('name');
-
-      if (error) throw error;
-      setServices(data || []);
-    } catch (error) {
-      console.error('Error loading services:', error);
+  const loadPerformanceData = async () => {
+    if (!tenantId || staff.length === 0) {
+      setLoading(false);
+      return;
     }
-  };
 
-  const loadAssignments = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('staff_services')
-        .select(`
-          *,
-          staff (name, color_hex),
-          services (name, price_cents, duration_min)
-        `)
-        .eq('tenant_id', tenantId);
-
-      if (error) throw error;
-      setAssignments(data || []);
-    } catch (error) {
-      console.error('Error loading assignments:', error);
-    }
-  };
-
-  const handleToggleAssignment = async (staffId: string, serviceId: string, isAssigned: boolean) => {
     setLoading(true);
     try {
-      if (isAssigned) {
-        // Remove assignment
-        const { error } = await supabase
-          .from('staff_services')
-          .delete()
-          .eq('staff_id', staffId)
-          .eq('service_id', serviceId)
-          .eq('tenant_id', tenantId);
+      const now = new Date();
+      let startDate: Date;
+      let endDate: Date;
 
-        if (error) throw error;
+      if (timeRange === "week") {
+        startDate = startOfWeek(now, { weekStartsOn: 1 });
+        endDate = endOfWeek(now, { weekStartsOn: 1 });
       } else {
-        // Add assignment
-        const { error } = await supabase
-          .from('staff_services')
-          .insert({
-            tenant_id: tenantId,
-            staff_id: staffId,
-            service_id: serviceId,
-          });
-
-        if (error) throw error;
+        startDate = startOfMonth(now);
+        endDate = endOfMonth(now);
       }
 
-      await loadAssignments();
-      toast({
-        title: "Zuweisung aktualisiert",
-        description: `Service-Zuweisung wurde ${isAssigned ? 'entfernt' : 'hinzugefügt'}.`,
-      });
+      const { data: appointments, error } = await supabase
+        .from("appointments")
+        .select(`
+          id,
+          staff_id,
+          status,
+          start_at,
+          service:services(price_cents)
+        `)
+        .eq("tenant_id", tenantId)
+        .gte("start_at", startDate.toISOString())
+        .lte("start_at", endDate.toISOString());
+
+      if (error) throw error;
+
+      const daysDiff = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+
+      const performance: PerformanceData[] = staff
+        .filter(s => s.active)
+        .map(member => {
+          const staffAppointments = appointments?.filter(a => a.staff_id === member.id) || [];
+          const completed = staffAppointments.filter(a => a.status === "COMPLETED");
+          const cancelled = staffAppointments.filter(a => a.status === "CANCELLED");
+          
+          const totalRevenue = completed.reduce((sum, a) => {
+            const service = a.service as { price_cents: number } | null;
+            return sum + (service?.price_cents || 0);
+          }, 0);
+
+          return {
+            staffId: member.id,
+            staffName: member.name,
+            colorHex: member.color_hex,
+            totalAppointments: staffAppointments.length,
+            completedAppointments: completed.length,
+            cancelledAppointments: cancelled.length,
+            totalRevenue: totalRevenue / 100,
+            avgAppointmentsPerDay: Math.round((staffAppointments.length / daysDiff) * 10) / 10,
+            completionRate: staffAppointments.length > 0 
+              ? Math.round((completed.length / staffAppointments.length) * 100) 
+              : 0,
+          };
+        });
+
+      setPerformanceData(performance);
     } catch (error) {
-      console.error('Error updating assignment:', error);
-      toast({
-        title: "Fehler",
-        description: "Die Zuweisung konnte nicht aktualisiert werden.",
-        variant: "destructive",
-      });
+      console.error("Error loading performance data:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const isServiceAssigned = (staffId: string, serviceId: string) => {
-    return assignments.some(a => a.staff_id === staffId && a.service_id === serviceId);
+  const totalStats = {
+    appointments: performanceData.reduce((sum, p) => sum + p.totalAppointments, 0),
+    revenue: performanceData.reduce((sum, p) => sum + p.totalRevenue, 0),
+    completed: performanceData.reduce((sum, p) => sum + p.completedAppointments, 0),
+    cancelled: performanceData.reduce((sum, p) => sum + p.cancelledAppointments, 0),
   };
 
-  const getStaffServices = (staffId: string) => {
-    return assignments.filter(a => a.staff_id === staffId);
-  };
-
-  const getServiceStaff = (serviceId: string) => {
-    return assignments.filter(a => a.service_id === serviceId);
-  };
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-8 text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-4 text-muted-foreground">Lade Leistungsdaten...</p>
+        </CardContent>
+      </Card>
+    );
+  }
 
   return (
     <div className="space-y-6">
+      {/* Time Range Selector */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setTimeRange("week")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            timeRange === "week" 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-muted hover:bg-muted/80"
+          }`}
+        >
+          Diese Woche
+        </button>
+        <button
+          onClick={() => setTimeRange("month")}
+          className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+            timeRange === "month" 
+              ? "bg-primary text-primary-foreground" 
+              : "bg-muted hover:bg-muted/80"
+          }`}
+        >
+          Dieser Monat
+        </button>
+      </div>
+
+      {/* Overview Stats */}
+      <div className="grid gap-4 md:grid-cols-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-blue-100 rounded-lg">
+                <Calendar className="h-5 w-5 text-blue-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Termine gesamt</p>
+                <p className="text-2xl font-bold">{totalStats.appointments}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-green-100 rounded-lg">
+                <Euro className="h-5 w-5 text-green-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Umsatz</p>
+                <p className="text-2xl font-bold">{formatCurrency(totalStats.revenue)}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-purple-100 rounded-lg">
+                <Star className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Abgeschlossen</p>
+                <p className="text-2xl font-bold">{totalStats.completed}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-center gap-4">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <Users className="h-5 w-5 text-red-600" />
+              </div>
+              <div>
+                <p className="text-sm text-muted-foreground">Storniert</p>
+                <p className="text-2xl font-bold">{totalStats.cancelled}</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Staff Performance Cards */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
-            <Scissors className="h-5 w-5" />
-            <span>Service-Zuweisungen</span>
+            <TrendingUp className="h-5 w-5" />
+            <span>Mitarbeiter-Leistung</span>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="space-y-6">
-            {/* Staff-centric view */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Zuweisungen pro Mitarbeiter</h3>
-              <div className="grid gap-4">
-                {staff.filter(s => s.active).map((member) => {
-                  const memberServices = getStaffServices(member.id);
-
-                  return (
-                    <Card key={member.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-4">
-                          <div className="flex items-center space-x-3">
-                            <div
-                              className="w-3 h-3 rounded-full"
-                              style={{ backgroundColor: member.color_hex }}
-                            />
-                            <div>
-                              <h4 className="font-medium">{member.name}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {memberServices.length} von {services.length} Services zugewiesen
-                              </p>
-                            </div>
-                          </div>
-                          <Badge variant="outline">
-                            {Math.round((memberServices.length / Math.max(services.length, 1)) * 100)}% Abdeckung
-                          </Badge>
-                        </div>
-
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                          {services.map((service) => {
-                            const isAssigned = isServiceAssigned(member.id, service.id);
-
-                            return (
-                              <div
-                                key={service.id}
-                                className={`flex items-center justify-between p-3 border rounded-lg ${
-                                  isAssigned ? 'bg-green-50 border-green-200' : 'bg-gray-50'
-                                }`}
-                              >
-                                <div className="flex items-center space-x-3">
-                                  <Checkbox
-                                    checked={isAssigned}
-                                    onCheckedChange={() =>
-                                      handleToggleAssignment(member.id, service.id, isAssigned)
-                                    }
-                                    disabled={loading}
-                                  />
-                                  <div>
-                                    <div className="font-medium text-sm">{service.name}</div>
-                                    <div className="text-xs text-muted-foreground">
-                                      {formatCurrency(service.price_cents / 100)} • {service.duration_min}min
-                                    </div>
-                                  </div>
-                                </div>
-                                {isAssigned ? (
-                                  <Check className="h-4 w-4 text-green-600" />
-                                ) : (
-                                  <X className="h-4 w-4 text-gray-400" />
-                                )}
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+          {performanceData.length === 0 ? (
+            <div className="text-center py-8 text-muted-foreground">
+              <Users className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Keine aktiven Mitarbeiter gefunden</p>
             </div>
-
-            {/* Service-centric view */}
-            <div>
-              <h3 className="text-lg font-semibold mb-4">Verfügbarkeit pro Service</h3>
-              <div className="grid gap-4">
-                {services.map((service) => {
-                  const serviceStaff = getServiceStaff(service.id);
-                  const activeStaff = staff.filter(s => s.active);
-
-                  return (
-                    <Card key={service.id}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between mb-4">
-                          <div>
-                            <h4 className="font-medium">{service.name}</h4>
-                            <p className="text-sm text-muted-foreground">
-                              {formatCurrency(service.price_cents / 100)} • {service.duration_min} Minuten
-                            </p>
-                            <p className="text-sm text-muted-foreground">
-                              Verfügbar bei {serviceStaff.length} von {activeStaff.length} Mitarbeitern
-                            </p>
-                          </div>
-                          <Badge variant={serviceStaff.length === 0 ? "destructive" : "default"}>
-                            {serviceStaff.length === 0 ? "Nicht verfügbar" : `${serviceStaff.length} Mitarbeiter`}
-                          </Badge>
+          ) : (
+            <div className="space-y-4">
+              {performanceData.map((data) => (
+                <Card key={data.staffId} className="border">
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center space-x-3">
+                        <div
+                          className="w-4 h-4 rounded-full"
+                          style={{ backgroundColor: data.colorHex }}
+                        />
+                        <div>
+                          <h4 className="font-semibold">{data.staffName}</h4>
+                          <p className="text-sm text-muted-foreground">
+                            Ø {data.avgAppointmentsPerDay} Termine/Tag
+                          </p>
                         </div>
+                      </div>
+                      <Badge variant={data.completionRate >= 80 ? "default" : "secondary"}>
+                        {data.completionRate}% Abschlussrate
+                      </Badge>
+                    </div>
 
-                        <div className="flex flex-wrap gap-2">
-                          {activeStaff.map((member) => {
-                            const isAssigned = isServiceAssigned(member.id, service.id);
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-4">
+                      <div>
+                        <p className="text-xs text-muted-foreground">Termine</p>
+                        <p className="text-lg font-semibold">{data.totalAppointments}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Abgeschlossen</p>
+                        <p className="text-lg font-semibold text-green-600">{data.completedAppointments}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Storniert</p>
+                        <p className="text-lg font-semibold text-red-600">{data.cancelledAppointments}</p>
+                      </div>
+                      <div>
+                        <p className="text-xs text-muted-foreground">Umsatz</p>
+                        <p className="text-lg font-semibold">{formatCurrency(data.totalRevenue)}</p>
+                      </div>
+                    </div>
 
-                            return (
-                              <Badge
-                                key={member.id}
-                                variant={isAssigned ? "default" : "outline"}
-                                className={`cursor-pointer transition-colors ${
-                                  isAssigned ? 'bg-green-100 text-green-800 border-green-300' : ''
-                                }`}
-                                onClick={() =>
-                                  handleToggleAssignment(member.id, service.id, isAssigned)
-                                }
-                              >
-                                <div
-                                  className="w-2 h-2 rounded-full mr-2"
-                                  style={{ backgroundColor: member.color_hex }}
-                                />
-                                {member.name}
-                                {isAssigned && <Check className="h-3 w-3 ml-1" />}
-                              </Badge>
-                            );
-                          })}
-                        </div>
-
-                        {serviceStaff.length === 0 && (
-                          <div className="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg">
-                            <div className="flex items-center space-x-2 text-red-600">
-                              <X className="h-4 w-4" />
-                              <span className="text-sm font-medium">
-                                Kein Mitarbeiter verfügbar für diesen Service
-                              </span>
-                            </div>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-sm">
+                        <span>Abschlussrate</span>
+                        <span>{data.completionRate}%</span>
+                      </div>
+                      <Progress value={data.completionRate} className="h-2" />
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
             </div>
-          </div>
+          )}
         </CardContent>
       </Card>
     </div>
