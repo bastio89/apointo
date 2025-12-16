@@ -267,6 +267,8 @@ const Settings = () => {
             sat_end: openingHours.satEnd,
             sun_start: openingHours.sunStart,
             sun_end: openingHours.sunEnd,
+          }, {
+            onConflict: 'tenant_id'
           });
 
         if (error) throw error;
